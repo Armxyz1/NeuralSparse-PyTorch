@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GENConv
+torch.manual_seed(0)
 
 # Define a Graph Convolutional Network (GCN) using GENConv layers
 class GCN(torch.nn.Module):
