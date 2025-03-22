@@ -72,59 +72,64 @@ class GumbelGCN(nn.Module):
         - node_mask (Tensor): Node mask.
         - training (bool): Training mode.
         """
-        # Create adjacency matrix
-        adj_batch = torch.sparse_coo_tensor(edge_index, torch.ones(edge_index.size(1)), (num_nodes, num_nodes), device=self.MLP.weight.device).to_dense()
+        if training:
+            # Create adjacency matrix
+            adj_batch = torch.sparse_coo_tensor(edge_index, torch.ones(edge_index.size(1)), (num_nodes, num_nodes), device=self.MLP.weight.device).to_dense()
 
-        # Create node embeddings
-        node_embedding = x.unsqueeze(-1).repeat(1, 1, num_nodes)
+            # Create node embeddings
+            node_embedding = x.unsqueeze(-1).repeat(1, 1, num_nodes)
 
-        # Create neighbor embeddings
-        neighbor_embedding = torch.zeros((num_nodes, self.input_dim, num_nodes), device=self.MLP.weight.device)
-        for u in range(num_nodes):
-            neighbors = edge_index[1, edge_index[0] == u]
-            for v in neighbors:
-                neighbor_embedding[u, :, v] = x[v]
+            # Create neighbor embeddings
+            neighbor_embedding = torch.zeros((num_nodes, self.input_dim, num_nodes), device=self.MLP.weight.device)
+            for u in range(num_nodes):
+                neighbors = edge_index[1, edge_index[0] == u]
+                for v in neighbors:
+                    neighbor_embedding[u, :, v] = x[v]
 
-        # Create edge embeddings
-        edge_embedding = torch.zeros((num_nodes, edge_attr.size(1), num_nodes), device=self.MLP.weight.device)
-        for u in range(num_nodes):
-            neighbors = edge_index[1, edge_index[0] == u]
-            for v in neighbors:
-                mask = (edge_index[0] == u) & (edge_index[1] == v)
-                edge_embedding[u, :, v] = edge_attr[mask].squeeze()
+            # Create edge embeddings
+            edge_embedding = torch.zeros((num_nodes, edge_attr.size(1), num_nodes), device=self.MLP.weight.device)
+            for u in range(num_nodes):
+                neighbors = edge_index[1, edge_index[0] == u]
+                for v in neighbors:
+                    mask = (edge_index[0] == u) & (edge_index[1] == v)
+                    edge_embedding[u, :, v] = edge_attr[mask].squeeze()
 
-        # Concatenate all features
-        all_feats = torch.cat([node_embedding, neighbor_embedding, edge_embedding], dim=1).transpose(1, 2)
+            # Concatenate all features
+            all_feats = torch.cat([node_embedding, neighbor_embedding, edge_embedding], dim=1).transpose(1, 2)
 
-        # Compute scores using MLP
-        score = self.MLP(all_feats).squeeze()
-        score[adj_batch == 0] = -1e9  # Mask non-adjacent nodes
-        z = F.softmax(score, dim=-1)
-        z[adj_batch == 0] = -1e9  # Mask non-adjacent nodes
-        z = self.gumbel_softmax(z, training=training)
+            # Compute scores using MLP
+            score = self.MLP(all_feats).squeeze()
+            score[adj_batch == 0] = -1e9  # Mask non-adjacent nodes
+            z = F.softmax(score, dim=-1)
+            z[adj_batch == 0] = -1e9  # Mask non-adjacent nodes
+            z = self.gumbel_softmax(z, training=training)
 
-        # Get top-k indices for each node
-        top_k_indices = torch.topk(z, self.k, dim=-1).indices
+            # Get top-k indices for each node
+            top_k_indices = torch.topk(z, self.k, dim=-1).indices
 
-        # Create new edge index
-        new_edge_index = torch.cat([
-            torch.arange(num_nodes, device=edge_index.device).view(-1, 1).expand(-1, self.k).reshape(-1, 1),
-            top_k_indices.reshape(-1, 1)
-        ], dim=-1).t()
+            # Create new edge index
+            new_edge_index = torch.cat([
+                torch.arange(num_nodes, device=edge_index.device).view(-1, 1).expand(-1, self.k).reshape(-1, 1),
+                top_k_indices.reshape(-1, 1)
+            ], dim=-1).t()
 
-        # Filter valid edges based on z values
-        valid_mask = z[new_edge_index[0], new_edge_index[1]] > 1e-3
-        new_edge_index = new_edge_index[:, valid_mask]
+            # Filter valid edges based on z values
+            valid_mask = z[new_edge_index[0], new_edge_index[1]] > 1e-3
+            new_edge_index = new_edge_index[:, valid_mask]
 
-        # Extract edge attributes
-        edge_attr_indices = (edge_index[0].view(1, -1) == new_edge_index[0].view(-1, 1)) & \
-                            (edge_index[1].view(1, -1) == new_edge_index[1].view(-1, 1))
-        edge_attr_indices = edge_attr_indices.float().argmax(dim=-1)
+            # Extract edge attributes
+            edge_attr_indices = (edge_index[0].view(1, -1) == new_edge_index[0].view(-1, 1)) & \
+                                (edge_index[1].view(1, -1) == new_edge_index[1].view(-1, 1))
+            edge_attr_indices = edge_attr_indices.float().argmax(dim=-1)
 
-        if edge_attr_indices.numel() > 0:
-            new_edge_attr = edge_attr[edge_attr_indices]
+            if edge_attr_indices.numel() > 0:
+                new_edge_attr = edge_attr[edge_attr_indices]
+            else:
+                new_edge_attr = torch.empty((0, edge_attr.shape[1]), device=edge_attr.device)
+
         else:
-            new_edge_attr = torch.empty((0, edge_attr.shape[1]), device=edge_attr.device)
+            new_edge_index = edge_index
+            new_edge_attr = edge_attr
 
         # Apply GCN layers
         x = self.conv(x, new_edge_index, new_edge_attr)

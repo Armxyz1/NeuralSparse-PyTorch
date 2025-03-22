@@ -15,5 +15,5 @@ pip install -r requirements.txt
 To train the model, execute:
 
 ```bash
-python train.py
+python main.py
 ```
