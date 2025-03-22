@@ -64,6 +64,10 @@ def train_eval(
     # Define the loss function
     criterion = torch.nn.BCEWithLogitsLoss()
 
+    patience = 10
+    best_val_loss = float('inf')
+    patience_counter = 0
+
     # Training loop
     for epoch in range(1, epochs + 1):
         model.train()
@@ -140,6 +144,21 @@ def train_eval(
             pbar.update(1)
 
         pbar.close()
+
+        torch.save(model.state_dict(), 'curr_model.pth')
+
+        # Early stopping
+        if val_total_loss < best_val_loss:
+            best_val_loss = val_total_loss
+            patience_counter = 0
+            torch.save(model.state_dict(), 'best_model.pth')
+
+        else:
+            patience_counter += 1
+            if patience_counter == patience:
+                print(f'Early stopping at epoch: {epoch}')
+                break
+
         print(f'Epoch: {epoch:03d}, Train Loss: {train_total_loss / train_total_examples:.4f}, Val Loss: {val_total_loss / val_total_examples:.4f}')
         torch.cuda.empty_cache()
         print()
