@@ -20,9 +20,19 @@ data.x = scatter(data.edge_attr, col, dim_size=data.num_nodes, reduce='sum')
 mask = torch.zeros(data.num_nodes, dtype=torch.bool)
 mask[splitted_idx["train"]] = True
 data['train_mask'] = mask
+mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+mask[splitted_idx["valid"]] = True
+data['valid_mask'] = mask
+mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+mask[splitted_idx["test"]] = True
+data['test_mask'] = mask
 
-# Create a data loader for the training nodes
+
+# Create data loaders
 train_loader = RandomNodeLoader(data, num_parts=100, shuffle=True)
+val_loader = RandomNodeLoader(data, num_parts=10, shuffle=False)
+test_loader = RandomNodeLoader(data, num_parts=10, shuffle=False)
+
 
 # Set the device to GPU if available, otherwise CPU
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -39,14 +49,15 @@ optimizer = torch.optim.Adam([
 # Define the loss function
 criterion = torch.nn.BCEWithLogitsLoss()
 
-def train(epoch):
+# Train the model for 100 epochs
+for epoch in range(1, 101):
     model.train()
 
     # Progress bar for tracking training progress
     pbar = tqdm(total=len(train_loader))
     pbar.set_description(f'Training epoch: {epoch:03d}')
 
-    total_loss = total_examples = 0
+    train_total_loss = train_total_examples = 0
 
     # Iterate over the training data
     for data in train_loader:
@@ -56,29 +67,103 @@ def train(epoch):
         edge_index = edge_index.to(device)
         edge_attr = edge_attr.to(device)
         num_nodes = data.num_nodes
+        train_mask = data.train_mask.to(device)
 
         # Zero the gradients
         optimizer.zero_grad()
         
         # Forward pass
-        logits = model(num_nodes, edge_index, edge_attr, x, data.train_mask, training=True)
+        logits = model(num_nodes, edge_index, edge_attr, x, train_mask, training=True)
 
         # Compute the loss
-        loss = criterion(logits, data.y[data.train_mask])
+        loss = criterion(logits, data.y[train_mask])
         
         # Backward pass and optimization
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item() * data.train_mask.sum().item()
-        total_examples += data.train_mask.sum().item()
+        train_total_loss += loss.item() * train_mask.sum().item()
+        train_total_examples += train_mask.sum().item()
 
         # Update the progress bar
-        pbar.set_postfix({'loss': total_loss / total_examples})
         pbar.update(1)
 
     pbar.close()
 
-# Train the model for 100 epochs
-for epoch in range(1, 101):
-    train(epoch)
+    # Clear memory
+    torch.cuda.empty_cache()
+
+    model.eval()
+
+    # Progress bar for tracking validation progress
+    pbar = tqdm(total=len(val_loader))
+    pbar.set_description(f'Validation epoch: {epoch:03d}')
+
+    val_total_loss = val_total_examples = 0
+
+    # Iterate over the validation data
+    for data in val_loader:
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+        x = data.x.to(device)
+        edge_index = edge_index.to(device)
+        edge_attr = edge_attr.to(device)
+        num_nodes = data.num_nodes
+        valid_mask = data.valid_mask.to(device)
+
+        if valid_mask.sum() == 0:
+            pbar.update(1)
+            continue
+
+        # Forward pass
+        logits = model(num_nodes, edge_index, edge_attr, x, valid_mask, training=False)
+
+        # Compute the loss
+        loss = criterion(logits, data.y[valid_mask])
+
+        val_total_loss += loss.item() * valid_mask.sum().item()
+        val_total_examples += valid_mask.sum().item()
+
+        # Update the progress bar
+        pbar.update(1)
+
+    pbar.close()
+    print(f'Epoch: {epoch:03d}, Train Loss: {train_total_loss / train_total_examples:.4f}, Val Loss: {val_total_loss / val_total_examples:.4f}')
+    print()
+
+# Test the model
+model.eval()
+
+# Progress bar for tracking test progress
+pbar = tqdm(total=len(test_loader))
+pbar.set_description(f'Testing')
+
+test_total_loss = test_total_examples = 0
+
+# Iterate over the test data
+for data in test_loader:
+    edge_index = data.edge_index
+    edge_attr = data.edge_attr
+    x = data.x.to(device)
+    edge_index = edge_index.to(device)
+    edge_attr = edge_attr.to(device)
+    num_nodes = data.num_nodes
+    test_mask = data.test_mask.to(device)
+
+    if test_mask.sum() == 0:
+        pbar.update(1)
+        continue
+
+    # Forward pass
+    logits = model(num_nodes, edge_index, edge_attr, x, test_mask, training=False)
+
+    # Compute the loss
+    loss = criterion(logits, data.y[test_mask])
+
+    test_total_loss += loss.item() * test_mask.sum().item()
+    test_total_examples += test_mask.sum().item()
+
+    # Update the progress bar
+    pbar.update(1)
+
+pbar.close()
