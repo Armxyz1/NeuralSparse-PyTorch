@@ -3,15 +3,18 @@ from ogb.nodeproppred import PygNodePropPredDataset
 from tqdm import tqdm
 from torch_geometric.loader import RandomNodeLoader
 from torch_geometric.utils import scatter
-from model import GumbelGCN
+from model_sparse import GumbelGCN
+from model_normal import NormalGCN
+from sklearn.metrics import roc_auc_score
 
 def train_eval(
     data_dir='./data', 
+    mode='sparse',
     train_parts=100, 
     val_parts=25, 
     test_parts=25, 
     epochs=100, 
-    lr=0.001, 
+    lr=1e-3, 
     weight_decay=5e-4, 
     temperature=0.05, 
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), 
@@ -53,11 +56,14 @@ def train_eval(
     test_loader = RandomNodeLoader(data, num_parts=test_parts, shuffle=False)
 
     # Initialize the model
-    model = GumbelGCN(input_dim, output_dim, edge_feature_dim, k, hidden1, hidden2, weight_decay, temperature).to(device)
+    if mode == 'sparse':
+        model = GumbelGCN(input_dim, output_dim, edge_feature_dim, k, hidden1, hidden2, temperature).to(device)
+    else:
+        model = NormalGCN(input_dim, output_dim, edge_feature_dim, k, hidden1, hidden2, temperature).to(device)
 
     # Set up the optimizer with weight decay for the first convolutional layer
     optimizer = torch.optim.Adam([
-    {'params': model.conv.conv1.parameters(), 'weight_decay': 5e-4},
+    {'params': model.conv.conv1.parameters(), 'weight_decay': weight_decay},
     {'params': [p for n, p in model.named_parameters() if 'conv.conv1' not in n], 'weight_decay': 0}
     ], lr)
 
@@ -65,7 +71,7 @@ def train_eval(
     criterion = torch.nn.BCEWithLogitsLoss()
 
     patience = 10
-    best_val_loss = float('inf')
+    best_val = float('-inf')
     patience_counter = 0
 
     # Training loop
@@ -114,7 +120,7 @@ def train_eval(
         pbar = tqdm(total=len(val_loader))
         pbar.set_description(f'Validation epoch: {epoch:03d}')
 
-        val_total_loss = val_total_examples = 0
+        val_total = val_total_examples = 0
 
         # Iterate over the validation data
         for data in val_loader:
@@ -134,11 +140,10 @@ def train_eval(
             # Forward pass
             logits = model(num_nodes, edge_index, edge_attr, x, valid_mask, training=False)
 
-            # Compute the loss
-            loss = criterion(logits, y)
+            probs = torch.sigmoid(logits)
 
-            val_total_loss += loss.item() * valid_mask.sum().item()
-            val_total_examples += valid_mask.sum().item()
+            val_total+= roc_auc_score(y.cpu().numpy(), probs.detach().cpu().numpy())
+            val_total_examples+=1
 
             # Update the progress bar
             pbar.update(1)
@@ -148,8 +153,8 @@ def train_eval(
         torch.save(model.state_dict(), 'curr_model.pth')
 
         # Early stopping
-        if val_total_loss < best_val_loss:
-            best_val_loss = val_total_loss
+        if val_total > best_val:
+            best_val = val_total
             patience_counter = 0
             torch.save(model.state_dict(), 'best_model.pth')
 
@@ -159,7 +164,7 @@ def train_eval(
                 print(f'Early stopping at epoch: {epoch}')
                 break
 
-        print(f'Epoch: {epoch:03d}, Train Loss: {train_total_loss / train_total_examples:.4f}, Val Loss: {val_total_loss / val_total_examples:.4f}')
+        print(f'Epoch: {epoch:03d}, Train Loss: {train_total_loss / train_total_examples:.4f}, Val ROC AUC: {val_total / val_total_examples:.4f}')
         torch.cuda.empty_cache()
         print()
 
@@ -168,7 +173,7 @@ def train_eval(
     pbar = tqdm(total=len(test_loader))
     pbar.set_description(f'Testing')
 
-    test_total_loss = test_total_examples = 0
+    test_total = test_total_examples = 0
 
     # Iterate over the test data
     for data in test_loader:
@@ -188,13 +193,14 @@ def train_eval(
         # Forward pass
         logits = model(num_nodes, edge_index, edge_attr, x, test_mask, training=False)
 
-        # Compute the loss
-        loss = criterion(logits, y)
+        probs = torch.sigmoid(logits)
 
-        test_total_loss += loss.item() * test_mask.sum().item()
-        test_total_examples += test_mask.sum().item()
+        test_total+= roc_auc_score(y.cpu().numpy(), probs.detach().cpu().numpy())
+        test_total_examples+=1
 
         # Update the progress bar
         pbar.update(1)
 
     pbar.close()
+
+    print(f'Test ROC AUC: {test_total / test_total_examples:.4f}')

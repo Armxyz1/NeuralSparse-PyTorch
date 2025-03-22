@@ -12,16 +12,14 @@ class GCN(torch.nn.Module):
         self.conv2 = GENConv(hidden_channels, out_channels, edge_dim=edge_dim)
 
     def forward(self, x, edge_index, edge_attr=None):
-        x = F.dropout(x, p=0.2, training=self.training)  # Apply dropout
         x = self.conv1(x, edge_index, edge_attr)  # First convolution
         x = F.relu(x)  # Apply ReLU activation
-        x = F.dropout(x, p=0.2, training=self.training)  # Apply dropout
         x = self.conv2(x, edge_index, edge_attr)  # Second convolution
         return x
 
 # Define a GumbelGCN for node classification
 class GumbelGCN(nn.Module):
-    def __init__(self, input_dim, output_dim, edge_feature_dim, k, hidden1=16, hidden2=16, weight_decay=5e-4, temperature=1.0):
+    def __init__(self, input_dim, output_dim, edge_feature_dim, k, hidden1=16, hidden2=16, temperature=1.0):
         """
         GumbelGCN for node classification.
 
@@ -38,7 +36,6 @@ class GumbelGCN(nn.Module):
 
         self.k = k
         self.temperature = temperature
-        self.weight_decay = weight_decay
         self.input_dim = input_dim
         self.output_dim = output_dim
 
@@ -131,6 +128,7 @@ class GumbelGCN(nn.Module):
         else:
             new_edge_index = edge_index
             new_edge_attr = edge_attr
+
 
         # Apply GCN layers
         x = self.conv(x, new_edge_index, new_edge_attr)

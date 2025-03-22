@@ -5,12 +5,13 @@ import torch
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default='./data', help='Directory for the dataset')
+    parser.add_argument('--mode', type=str, default='sparse', help='sparse or normal')
     parser.add_argument('--train_parts', type=int, default=100, help='Number of training parts')
     parser.add_argument('--val_parts', type=int, default=25, help='Number of validation parts')
     parser.add_argument('--test_parts', type=int, default=25, help='Number of test parts')
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
-    parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
-    parser.add_argument('--weight_decay', type=float, default=5e-4, help='Weight decay')
+    parser.add_argument('--lr', type=float, default=0.005, help='Learning rate')
+    parser.add_argument('--weight_decay', type=float, default=1e-3, help='Weight decay')
     parser.add_argument('--temperature', type=float, default=0.05, help='Temperature for softmax')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help='Device to use for training')
     parser.add_argument('--hidden1', type=int, default=16, help='Size of the first hidden layer')
@@ -22,6 +23,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     data_dir = args.data_dir
+    mode = args.mode
     train_parts = args.train_parts
     val_parts = args.val_parts
     test_parts = args.test_parts
@@ -37,4 +39,4 @@ if __name__ == "__main__":
     output_dim = args.output_dim
     edge_feature_dim = args.edge_feature_dim
 
-    train_eval(data_dir, train_parts, val_parts, test_parts, epochs, lr, weight_decay, temperature, device, hidden1, hidden2, k, input_dim, output_dim, edge_feature_dim)
+    train_eval(data_dir, mode, train_parts, val_parts, test_parts, epochs, lr, weight_decay, temperature, device, hidden1, hidden2, k, input_dim, output_dim, edge_feature_dim)
