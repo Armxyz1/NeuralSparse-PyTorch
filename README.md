@@ -4,7 +4,7 @@ This repository provides a PyTorch implementation of the Graph Sparsification te
 
 ## Installation
 
-To install the required dependencies, run the following command:
+To install the required dependencies, run:
 
 ```bash
 pip install -r requirements.txt
@@ -12,14 +12,27 @@ pip install -r requirements.txt
 
 ## Usage
 
-To train the model using graph sparsification, execute the following command:
+To train the model using graph sparsification, execute:
 
 ```bash
 python main.py
 ```
 
-To train the model without graph sparsification, execute the following command:
+To train the model without graph sparsification, execute:
 
 ```bash
 python main.py --mode normal
 ```
+
+## Results
+
+The table below shows the performance of the model with and without graph sparsification:
+
+| **Model**           | **ROC-AUC** |
+|-----------------|---------|
+| Normal          | 0.6869  |
+| Sparsification  | 0.7167  |
+
+## Weights
+
+The weights of the sparsified model are saved in the `sparse_wts` directory. The weights of the normal model are saved in the `normal_wts` directory.
