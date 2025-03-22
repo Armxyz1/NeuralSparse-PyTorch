@@ -6,6 +6,7 @@ from torch_geometric.utils import scatter
 from model_sparse import GumbelGCN
 from model_normal import NormalGCN
 from sklearn.metrics import roc_auc_score
+torch.manual_seed(0)
 
 def train_eval(
     data_dir='./data', 
@@ -204,3 +205,5 @@ def train_eval(
     pbar.close()
 
     print(f'Test ROC AUC: {test_total / test_total_examples:.4f}')
+    torch.cuda.empty_cache()
+

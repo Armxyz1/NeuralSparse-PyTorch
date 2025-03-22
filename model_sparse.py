@@ -129,7 +129,6 @@ class GumbelGCN(nn.Module):
             new_edge_index = edge_index
             new_edge_attr = edge_attr
 
-
         # Apply GCN layers
         x = self.conv(x, new_edge_index, new_edge_attr)
         x = F.relu(x)

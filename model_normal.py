@@ -50,7 +50,7 @@ class NormalGCN(nn.Module):
         # Fully connected output layer
         self.fc = nn.Linear(hidden2, output_dim)
 
-    def forward(self, num_nodes, edge_index, edge_attr, x, node_mask, training=True):
+    def forward(self, edge_index, edge_attr, x, node_mask):
         """
         Forward pass for NormalGCN.
 
@@ -63,9 +63,10 @@ class NormalGCN(nn.Module):
         - training (bool): Training mode.
         """
         # Apply GCN layers
+
         x = self.conv(x, edge_index, edge_attr)
         x = F.relu(x)
         x = self.fc(x)
-        x = x[node_mask != 0]
+        x = x[node_mask!=0]
 
         return x
