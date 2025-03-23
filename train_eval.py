@@ -58,9 +58,9 @@ def train_eval(
 
     # Initialize the model
     if mode == 'sparse':
-        model = GumbelGCN(input_dim, output_dim, edge_feature_dim, k, hidden1, hidden2, temperature).to(device)
+        model = GumbelGCN(input_dim, output_dim, edge_feature_dim, k, device, hidden1, hidden2, temperature).to(device)
     else:
-        model = NormalGCN(input_dim, output_dim, edge_feature_dim, k, hidden1, hidden2, temperature).to(device)
+        model = NormalGCN(input_dim, output_dim, edge_feature_dim, k, device, hidden1, hidden2, temperature).to(device)
 
     # Set up the optimizer with weight decay for the first convolutional layer
     optimizer = torch.optim.Adam([

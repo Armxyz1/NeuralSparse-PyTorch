@@ -19,7 +19,7 @@ class GCN(torch.nn.Module):
 
 # Define a GumbelGCN for node classification
 class GumbelGCN(nn.Module):
-    def __init__(self, input_dim, output_dim, edge_feature_dim, k, hidden1=16, hidden2=16, temperature=1.0):
+    def __init__(self, input_dim, output_dim, edge_feature_dim, k, device, hidden1=16, hidden2=16, temperature=1.0):
         """
         GumbelGCN for node classification.
 
@@ -38,6 +38,8 @@ class GumbelGCN(nn.Module):
         self.temperature = temperature
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.edge_feature_dim = edge_feature_dim
+        self.device = device
 
         # Edge feature transformation layer
         self.MLP = nn.Linear(edge_feature_dim + 2 * input_dim, 1)
@@ -50,7 +52,7 @@ class GumbelGCN(nn.Module):
 
     def sample_gumbel(self, shape, eps=1e-20):
         """Samples from a Gumbel distribution."""
-        U = torch.rand(shape, device=self.MLP.weight.device)
+        U = torch.rand(shape, device=self.device)
         return -torch.log(-torch.log(U + eps) + eps)
 
     def gumbel_softmax(self, logits, training=True):
@@ -72,20 +74,20 @@ class GumbelGCN(nn.Module):
         """
         if training:
             # Create adjacency matrix
-            adj_batch = torch.sparse_coo_tensor(edge_index, torch.ones(edge_index.size(1)), (num_nodes, num_nodes), device=self.MLP.weight.device).to_dense()
+            adj_batch = torch.sparse_coo_tensor(edge_index, torch.ones(self.edge_feature_dim), (num_nodes, num_nodes), device=self.device).to_dense()
 
             # Create node embeddings
             node_embedding = x.unsqueeze(-1).repeat(1, 1, num_nodes)
 
             # Create neighbor embeddings
-            neighbor_embedding = torch.zeros((num_nodes, self.input_dim, num_nodes), device=self.MLP.weight.device)
+            neighbor_embedding = torch.zeros((num_nodes, self.input_dim, num_nodes), device=self.device)
             for u in range(num_nodes):
                 neighbors = edge_index[1, edge_index[0] == u]
                 for v in neighbors:
                     neighbor_embedding[u, :, v] = x[v]
 
             # Create edge embeddings
-            edge_embedding = torch.zeros((num_nodes, edge_attr.size(1), num_nodes), device=self.MLP.weight.device)
+            edge_embedding = torch.zeros((num_nodes, edge_attr.size(1), num_nodes), device=self.device)
             for u in range(num_nodes):
                 neighbors = edge_index[1, edge_index[0] == u]
                 for v in neighbors:
@@ -99,7 +101,6 @@ class GumbelGCN(nn.Module):
             score = self.MLP(all_feats).squeeze()
             score[adj_batch == 0] = -1e9  # Mask non-adjacent nodes
             z = F.softmax(score, dim=-1)
-            z[adj_batch == 0] = -1e9  # Mask non-adjacent nodes
             z = self.gumbel_softmax(z, training=training)
 
             # Get top-k indices for each node
@@ -112,7 +113,7 @@ class GumbelGCN(nn.Module):
             ], dim=-1).t()
 
             # Filter valid edges based on z values
-            valid_mask = z[new_edge_index[0], new_edge_index[1]] > 1e-3
+            valid_mask = z[new_edge_index[0], new_edge_index[1]] > 0
             new_edge_index = new_edge_index[:, valid_mask]
 
             # Extract edge attributes
