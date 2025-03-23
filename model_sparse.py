@@ -74,7 +74,7 @@ class GumbelGCN(nn.Module):
         """
         if training:
             # Create adjacency matrix
-            adj_batch = torch.sparse_coo_tensor(edge_index, torch.ones(self.edge_feature_dim), (num_nodes, num_nodes), device=self.device).to_dense()
+            adj_batch = torch.sparse_coo_tensor(edge_index, torch.ones(edge_index.shape[1], device=self.device), (num_nodes, num_nodes), device=self.device).to_dense()
 
             # Create node embeddings
             node_embedding = x.unsqueeze(-1).repeat(1, 1, num_nodes)
