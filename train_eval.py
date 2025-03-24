@@ -68,6 +68,12 @@ def train_eval(
     {'params': [p for n, p in model.named_parameters() if 'conv.conv1' not in n], 'weight_decay': 0}
     ], lr)
 
+    # Save path
+    if mode == 'sparse':
+        save_path = './sparse_wts/'
+    else:
+        save_path = './normal_wts/'
+
     # Define the loss function
     criterion = torch.nn.BCEWithLogitsLoss()
 
@@ -151,13 +157,13 @@ def train_eval(
 
         pbar.close()
 
-        torch.save(model.state_dict(), 'curr_model.pth')
+        torch.save(model.state_dict(), save_path + 'curr_model.pth')
 
         # Early stopping
         if val_total > best_val:
             best_val = val_total
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_model.pth')
+            torch.save(model.state_dict(), save_path + 'best_model.pth')
 
         else:
             patience_counter += 1
@@ -169,7 +175,16 @@ def train_eval(
         torch.cuda.empty_cache()
         print()
 
+    del model
+
     # Test the model
+    if mode == 'sparse':
+        model = GumbelGCN(input_dim, output_dim, edge_feature_dim, k, device, hidden1, hidden2, temperature).to(device)
+    else:
+        model = NormalGCN(input_dim, output_dim, edge_feature_dim, k, device, hidden1, hidden2, temperature).to(device)
+
+    model.load_state_dict(torch.load(save_path + 'best_model.pth'))
+    model.to(device)
     model.eval()
     pbar = tqdm(total=len(test_loader))
     pbar.set_description(f'Testing')
