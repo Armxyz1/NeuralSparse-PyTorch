@@ -21,7 +21,7 @@ class GCN(torch.nn.Module):
 
 # Define a NormalGCN for node classification
 class NormalGCN(nn.Module):
-    def __init__(self, input_dim, output_dim, edge_feature_dim, k, hidden1=16, hidden2=16, temperature=1.0):
+    def __init__(self, input_dim, output_dim, edge_feature_dim, k, device, hidden1=16, hidden2=16, temperature=1.0):
         """
         NormalGCN for node classification.
 
@@ -40,6 +40,7 @@ class NormalGCN(nn.Module):
         self.temperature = temperature
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.device = device
 
         # Edge feature transformation layer
         self.MLP = nn.Linear(edge_feature_dim + 2 * input_dim, 1)

@@ -30,8 +30,8 @@ The table below shows the performance of the model with and without graph sparsi
 
 | **Model**           | **ROC-AUC** |
 |-----------------|---------|
-| Normal          | 0.6869  |
-| Sparsification  | 0.7167  |
+| Normal          | 0.7013 |
+| Sparsification  | 0.7269  |
 
 ## Weights
 
