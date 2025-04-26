@@ -2,6 +2,8 @@
 
 This repository provides a PyTorch implementation of the Graph Sparsification technique from the paper [Robust Graph Representation Learning via Neural Sparsification](https://openreview.net/forum?id=S1emOTNKvS). The implementation is applied to the OGBN-Proteins dataset.
 
+NOTE: For this implementation, I've sampled edges from immediate neighbors and not 1-hop neighbors due to the needs of the dataset (edge embeddings aren't available for every edge).
+
 ## Installation
 
 To install the required dependencies, run:
